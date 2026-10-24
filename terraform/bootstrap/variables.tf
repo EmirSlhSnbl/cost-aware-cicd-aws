@@ -25,3 +25,13 @@ variable "github_repo" {
   type        = string
   default     = "cost-aware-cicd-aws"
 }
+
+variable "github_owner_id" {
+  description = "Numeric GitHub user/org ID (appears in the OIDC sub claim)."
+  type        = string
+}
+
+variable "github_repo_id" {
+  description = "Numeric GitHub repository ID (appears in the OIDC sub claim)."
+  type        = string
+}
