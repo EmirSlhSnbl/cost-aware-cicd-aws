@@ -1,3 +1,5 @@
-owner        = "emir"
-github_owner = "EmirSlhSnbl"
-github_repo  = "cost-aware-cicd-aws"
+owner           = "emir"
+github_owner    = "EmirSlhSnbl"
+github_repo     = "cost-aware-cicd-aws"
+github_owner_id = "137483300"
+github_repo_id  = "1424395589"

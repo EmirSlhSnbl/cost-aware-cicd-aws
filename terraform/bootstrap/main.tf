@@ -60,7 +60,7 @@ resource "aws_iam_openid_connect_provider" "github" {
 }
 
 locals {
-  repo = "${var.github_owner}/${var.github_repo}"
+  repo = "${var.github_owner}@${var.github_owner_id}/${var.github_repo}@${var.github_repo_id}"
 }
 
 # Rol 1: PLAN (pull request'ler). AWS'te sadece okuyabilir.
