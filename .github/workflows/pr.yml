@@ -38,3 +38,98 @@ jobs:
 
       - name: Build Docker image
         run: docker build -t finops-app:pr ./app
+
+  terraform:
+    name: terraform
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      TF_IN_AUTOMATION: "true"
+    defaults:
+      run:
+        shell: bash
+        working-directory: terraform/envs/dev
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.10.5"
+          terraform_wrapper: false
+
+      - name: Format check
+        run: terraform fmt -check -recursive -diff ../../
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_PLAN_ROLE_ARN }}
+          aws-region: eu-central-1
+
+      - name: Terraform init
+        run: terraform init -input=false
+
+      - name: Terraform validate
+        run: terraform validate
+
+      - name: Terraform plan
+        run: terraform plan -input=false -no-color -out=tfplan
+
+      - name: Show plan in job summary
+        if: always()
+        run: |
+          {
+            echo '### Terraform plan'
+            echo '```'
+            terraform show -no-color tfplan 2>/dev/null || echo "Plan not available"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  infracost:
+    name: infracost
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          path: pr
+
+      - name: Checkout base branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: base
+
+      - name: Setup Infracost
+        uses: infracost/actions/setup@v3
+        with:
+          api-key: ${{ secrets.INFRACOST_API_KEY }}
+
+      - name: Cost of base branch
+        run: |
+          infracost breakdown \
+            --path=base/terraform/envs/dev \
+            --format=json \
+            --out-file=/tmp/infracost-base.json
+
+      - name: Cost difference of PR
+        run: |
+          infracost diff \
+            --path=pr/terraform/envs/dev \
+            --format=json \
+            --compare-to=/tmp/infracost-base.json \
+            --out-file=/tmp/infracost.json
+
+      - name: Post PR comment
+        run: |
+          infracost comment github \
+            --path=/tmp/infracost.json \
+            --repo="$GITHUB_REPOSITORY" \
+            --pull-request=${{ github.event.pull_request.number }} \
+            --github-token=${{ github.token }} \
+            --behavior=update
