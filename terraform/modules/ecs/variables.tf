@@ -28,13 +28,13 @@ variable "app_port" {
 variable "cpu" {
   description = "Fargate CPU units (256 = 0.25 vCPU, the cheapest size)."
   type        = number
-  default     = 256
+  default     = 1024
 }
 
 variable "memory" {
   description = "Fargate memory in MiB (512 is the smallest valid for 256 CPU)."
   type        = number
-  default     = 512
+  default     = 4096
 }
 
 variable "desired_count" {
