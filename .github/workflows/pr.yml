@@ -79,6 +79,22 @@ jobs:
       - name: Terraform plan
         run: terraform plan -input=false -no-color -out=tfplan
 
+      - name: Install Conftest
+        run: |
+          curl -sSL -o "$RUNNER_TEMP/conftest.tgz" https://github.com/open-policy-agent/conftest/releases/download/v0.56.0/conftest_0.56.0_Linux_x86_64.tar.gz
+          tar -xzf "$RUNNER_TEMP/conftest.tgz" -C "$RUNNER_TEMP" conftest
+          sudo mv "$RUNNER_TEMP/conftest" /usr/local/bin/conftest
+          conftest --version
+
+      - name: Policy unit tests
+        run: conftest verify --policy "$GITHUB_WORKSPACE/policy"
+
+      - name: Plan to JSON
+        run: terraform show -json tfplan > "$RUNNER_TEMP/plan.json"
+
+      - name: Policy check (plan)
+        run: conftest test "$RUNNER_TEMP/plan.json" --policy "$GITHUB_WORKSPACE/policy/terraform" --all-namespaces --no-color
+
       - name: Show plan in job summary
         if: always()
         run: |
@@ -135,3 +151,37 @@ jobs:
             --pull-request=${{ github.event.pull_request.number }} \
             --github-token=${{ github.token }} \
             --behavior=update
+
+      - name: Install Conftest
+        run: |
+          curl -sSL -o "$RUNNER_TEMP/conftest.tgz" https://github.com/open-policy-agent/conftest/releases/download/v0.56.0/conftest_0.56.0_Linux_x86_64.tar.gz
+          tar -xzf "$RUNNER_TEMP/conftest.tgz" -C "$RUNNER_TEMP" conftest
+          sudo mv "$RUNNER_TEMP/conftest" /usr/local/bin/conftest
+
+      - name: Budget policy check
+        run: conftest test /tmp/infracost.json --policy pr/policy/cost --all-namespaces --no-color
+
+  security:
+    name: security
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Checkov (Terraform)
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: terraform
+          framework: terraform
+          soft_fail: true
+          output_format: cli
+
+      - name: Build image for scanning
+        run: docker build -t finops-app:scan ./app
+
+      - name: Trivy image scan
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: finops-app:scan
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"
