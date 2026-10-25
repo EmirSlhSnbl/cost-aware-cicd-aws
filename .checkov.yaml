@@ -1,0 +1,23 @@
+skip-check:
+  # TEMP: apply rolu AdministratorAccess, Hafta 6'da en az yetkiye daraltilacak
+  - CKV_AWS_274
+  # Cost: KMS anahtari aylik ucret getirir, AES256 sifreleme zaten acik
+  - CKV_AWS_136
+  - CKV_AWS_158
+  - CKV_AWS_145
+  # Cost: 1 yil log saklama maliyeti, dev icin 7 gun yeterli
+  - CKV_AWS_338
+  # Cost: Container Insights ek CloudWatch maliyeti
+  - CKV_AWS_65
+  # Design: NAT Gateway yok, gorev genel IP ile ECR'dan imaj ceker
+  - CKV_AWS_333
+  # Cost: VPC flow logs log maliyeti
+  - CKV2_AWS_11
+  # Accepted: ilk iki availability zone kullaniliyor
+  - CKV_AWS_394
+  # False positive: SG modul ciktisiyla ECS servisine bagli
+  - CKV2_AWS_5
+  # State kovasi: capraz bolge kopya, olay bildirimi, erisim logu maliyet/karmasiklik
+  - CKV_AWS_144
+  - CKV2_AWS_62
+  - CKV_AWS_18

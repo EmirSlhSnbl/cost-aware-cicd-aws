@@ -61,12 +61,17 @@ resource "aws_security_group" "app" {
   }
 
   egress {
-    description = "Outbound for ECR pull and CloudWatch Logs"
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
+    description = "HTTPS out for ECR pull and CloudWatch Logs"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
 
   tags = { Name = "${var.name}-app-sg" }
+}
+# Varsayilan guvenlik grubunu tum trafige kapat (bos kural = hicbir trafik).
+resource "aws_default_security_group" "default" {
+  vpc_id = aws_vpc.this.id
+  tags   = { Name = "${var.name}-default-sg" }
 }
