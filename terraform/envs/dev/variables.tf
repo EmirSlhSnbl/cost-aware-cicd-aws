@@ -35,3 +35,8 @@ variable "desired_count" {
   type        = number
   default     = 0
 }
+variable "chaos_unhealthy" {
+  description = "Rehearse a failed deployment: the app answers 503 on /health. Never true on main."
+  type        = bool
+  default     = false
+}
