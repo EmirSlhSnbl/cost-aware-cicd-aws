@@ -1,0 +1,194 @@
+name: Deploy to dev
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "app/**"
+      - "terraform/**"
+      - ".github/workflows/deploy.yml"
+  workflow_dispatch:
+    inputs:
+      simulate_failure:
+        description: "Rehearse a failed deployment (the app answers 503 on /health)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+# Never run two deployments (or a deployment and a teardown) at the same time.
+concurrency:
+  group: dev-environment
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: eu-central-1
+  TF_IN_AUTOMATION: "true"
+  TF_DIR: terraform/envs/dev
+
+jobs:
+  deploy:
+    name: deploy
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    timeout-minutes: 40
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      MAIL_USERNAME: ${{ secrets.MAIL_USERNAME }}
+      MAIL_APP_PASSWORD: ${{ secrets.MAIL_APP_PASSWORD }}
+      SIMULATE_FAILURE: ${{ inputs.simulate_failure == true && 'true' || 'false' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compute image tag
+        id: meta
+        run: echo "tag=sha-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.10.5"
+          terraform_wrapper: false
+
+      - name: Configure AWS credentials (OIDC, apply role)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_APPLY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Terraform init
+        working-directory: ${{ env.TF_DIR }}
+        run: terraform init -input=false
+
+      - name: Remember the currently deployed tag
+        id: previous
+        working-directory: ${{ env.TF_DIR }}
+        run: |
+          PREV=$(terraform output -raw deployed_image_tag 2>/dev/null || true)
+          echo "tag=${PREV}" >> "$GITHUB_OUTPUT"
+          echo "Previously deployed tag: '${PREV:-none}'"
+
+      # The image repository must exist before we can push to it. On a fresh
+      # environment this creates only the ECR module; on a running one it is a no-op.
+      - name: Ensure the ECR repository exists
+        working-directory: ${{ env.TF_DIR }}
+        run: terraform apply -input=false -auto-approve -lock-timeout=5m -target=module.ecr
+
+      - name: Log in to ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push the image
+        working-directory: ${{ env.TF_DIR }}
+        env:
+          TAG: ${{ steps.meta.outputs.tag }}
+        run: |
+          REPO=$(terraform output -raw ecr_repository_url)
+          if aws ecr describe-images --repository-name "${REPO#*/}" --image-ids imageTag="$TAG" >/dev/null 2>&1; then
+            echo "Image $TAG already exists in ECR (tags are immutable): skipping push."
+          else
+            docker build --platform linux/amd64 -t "$REPO:$TAG" "$GITHUB_WORKSPACE/app"
+            docker push "$REPO:$TAG"
+          fi
+
+      - name: Deploy (terraform apply)
+        working-directory: ${{ env.TF_DIR }}
+        env:
+          TAG: ${{ steps.meta.outputs.tag }}
+        run: |
+          terraform apply -input=false -auto-approve -lock-timeout=5m \
+            -var "image_tag=$TAG" \
+            -var "desired_count=1" \
+            -var "chaos_unhealthy=$SIMULATE_FAILURE"
+
+      - name: Smoke test the running service
+        id: smoke
+        env:
+          TAG: ${{ steps.meta.outputs.tag }}
+        run: |
+          CLUSTER=$(terraform -chdir="$TF_DIR" output -raw ecs_cluster_name)
+          SERVICE=$(terraform -chdir="$TF_DIR" output -raw ecs_service_name)
+
+          for attempt in $(seq 1 30); do
+            TASK=$(aws ecs list-tasks --cluster "$CLUSTER" --service-name "$SERVICE" \
+              --desired-status RUNNING --query 'taskArns[0]' --output text)
+            if [ "$TASK" != "None" ] && [ -n "$TASK" ]; then
+              ENI=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$TASK" \
+                --query "tasks[0].attachments[0].details[?name=='networkInterfaceId'].value | [0]" --output text)
+              IP=$(aws ec2 describe-network-interfaces --network-interface-ids "$ENI" \
+                --query 'NetworkInterfaces[0].Association.PublicIp' --output text)
+              if [ "$IP" != "None" ] && [ -n "$IP" ]; then
+                if curl -fsS --max-time 5 "http://$IP:8080/health" >/dev/null; then
+                  SERVED=$(curl -fsS --max-time 5 "http://$IP:8080/version" | jq -r .version)
+                  echo "Service answers on $IP, serving version $SERVED"
+                  if [ "$SERVED" = "$TAG" ]; then
+                    echo "ip=$IP" >> "$GITHUB_OUTPUT"
+                    echo "Smoke test passed."
+                    exit 0
+                  fi
+                  echo "Version mismatch: expected $TAG, got $SERVED (ECS may have rolled back)."
+                fi
+              fi
+            fi
+            echo "Attempt $attempt/30: not ready yet"
+            sleep 10
+          done
+          echo "Smoke test failed."
+          exit 1
+
+      - name: Notify (success)
+        if: success() && env.MAIL_USERNAME != ''
+        env:
+          TAG: ${{ steps.meta.outputs.tag }}
+          IP: ${{ steps.smoke.outputs.ip }}
+        run: |
+          SUBJECT="[FinOps Guard] DEPLOY OK ${TAG}"
+          BODY="Deployed ${TAG}
+          http://${IP}:8080/version
+          Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          printf 'From: FinOps Guard <%s>\nTo: %s\nSubject: %s\nContent-Type: text/plain; charset=utf-8\n\n%s\n' \
+            "$MAIL_USERNAME" "$MAIL_USERNAME" "$SUBJECT" "$BODY" \
+            | curl -fsS --ssl-reqd --url "smtps://smtp.gmail.com:465" \
+                --user "$MAIL_USERNAME:$MAIL_APP_PASSWORD" \
+                --mail-from "$MAIL_USERNAME" --mail-rcpt "$MAIL_USERNAME" -T -
+
+      # Terraform state may say "new version" while ECS already rolled back, or the
+      # service may be unhealthy. Realign state and service with the last good tag,
+      # or scale to zero if there was no previous deployment.
+      - name: Roll back
+        id: rollback
+        if: failure() && (steps.smoke.conclusion == 'failure' || steps.smoke.conclusion == 'cancelled' || steps.smoke.conclusion == 'skipped')
+        working-directory: ${{ env.TF_DIR }}
+        env:
+          PREV: ${{ steps.previous.outputs.tag }}
+          TAG: ${{ steps.meta.outputs.tag }}
+        run: |
+          if [ -n "$PREV" ]; then
+            echo "Rolling back to $PREV"
+            terraform apply -input=false -auto-approve -lock-timeout=5m \
+              -var "image_tag=$PREV" -var "desired_count=1" -var "chaos_unhealthy=false"
+            echo "result=rolled back to $PREV" >> "$GITHUB_OUTPUT"
+          else
+            echo "No previous deployment: scaling the service to zero"
+            terraform apply -input=false -auto-approve -lock-timeout=5m \
+              -var "image_tag=$TAG" -var "desired_count=0" -var "chaos_unhealthy=false"
+            echo "result=scaled to zero (no previous version)" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Notify (failure)
+        if: failure() && env.MAIL_USERNAME != ''
+        env:
+          TAG: ${{ steps.meta.outputs.tag }}
+          RESULT: ${{ steps.rollback.outputs.result }}
+        run: |
+          SUBJECT="[FinOps Guard] DEPLOY FAILED ${TAG}"
+          BODY="Deploy of ${TAG} failed.
+          Recovery: ${RESULT:-none (failed before the deploy step)}
+          Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          printf 'From: FinOps Guard <%s>\nTo: %s\nSubject: %s\nContent-Type: text/plain; charset=utf-8\n\n%s\n' \
+            "$MAIL_USERNAME" "$MAIL_USERNAME" "$SUBJECT" "$BODY" \
+            | curl -fsS --ssl-reqd --url "smtps://smtp.gmail.com:465" \
+                --user "$MAIL_USERNAME:$MAIL_APP_PASSWORD" \
+                --mail-from "$MAIL_USERNAME" --mail-rcpt "$MAIL_USERNAME" -T -

@@ -50,4 +50,5 @@ module "ecs" {
   security_group_id    = module.network.app_security_group_id
   app_port             = var.app_port
   desired_count        = var.desired_count
+  environment          = var.chaos_unhealthy ? { CHAOS_UNHEALTHY = "1" } : {}
 }

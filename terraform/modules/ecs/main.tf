@@ -50,8 +50,20 @@ resource "aws_ecs_task_definition" "app" {
 
     portMappings = [{ containerPort = var.app_port, protocol = "tcp" }]
 
-    environment = [{ name = "APP_VERSION", value = var.image_tag }]
+    environment = concat(
+      [{ name = "APP_VERSION", value = var.image_tag }],
+      [for k, v in var.environment : { name = k, value = v }]
+    )
 
+    # ECS stops a task whose /health stops answering; repeated failures trip the
+    # deployment circuit breaker below and trigger the rollback.
+    healthCheck = {
+      command     = ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:${var.app_port}/health', timeout=2)\" || exit 1"]
+      interval    = 15
+      timeout     = 5
+      retries     = 3
+      startPeriod = 10
+    }
     logConfiguration = {
       logDriver = "awslogs"
       options = {
@@ -74,6 +86,12 @@ resource "aws_ecs_service" "app" {
   deployment_circuit_breaker {
     enable   = true
     rollback = true
+  }
+  wait_for_steady_state = true
+
+  timeouts {
+    create = "15m"
+    update = "15m"
   }
 
   network_configuration {

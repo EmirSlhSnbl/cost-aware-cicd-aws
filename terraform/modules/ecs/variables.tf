@@ -47,3 +47,8 @@ variable "log_retention_days" {
   type    = number
   default = 7
 }
+variable "environment" {
+  description = "Extra environment variables for the container."
+  type        = map(string)
+  default     = {}
+}

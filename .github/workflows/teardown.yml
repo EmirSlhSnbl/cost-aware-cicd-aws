@@ -1,0 +1,66 @@
+name: Tear down dev
+
+# Manual only. Destroys everything in terraform/envs/dev (not the bootstrap).
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "destroy" to confirm'
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dev-environment
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: eu-central-1
+  TF_IN_AUTOMATION: "true"
+
+jobs:
+  teardown:
+    name: teardown
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && inputs.confirm == 'destroy'
+    timeout-minutes: 30
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      MAIL_USERNAME: ${{ secrets.MAIL_USERNAME }}
+      MAIL_APP_PASSWORD: ${{ secrets.MAIL_APP_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.10.5"
+          terraform_wrapper: false
+
+      - name: Configure AWS credentials (OIDC, apply role)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_APPLY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Terraform destroy
+        working-directory: terraform/envs/dev
+        run: |
+          terraform init -input=false
+          terraform destroy -input=false -auto-approve -lock-timeout=5m
+
+      - name: Notify
+        if: always() && env.MAIL_USERNAME != ''
+        env:
+          RESULT: ${{ job.status }}
+        run: |
+          SUBJECT="[FinOps Guard] TEARDOWN ${RESULT}"
+          BODY="Dev environment teardown: ${RESULT}
+          Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          printf 'From: FinOps Guard <%s>\nTo: %s\nSubject: %s\nContent-Type: text/plain; charset=utf-8\n\n%s\n' \
+            "$MAIL_USERNAME" "$MAIL_USERNAME" "$SUBJECT" "$BODY" \
+            | curl -fsS --ssl-reqd --url "smtps://smtp.gmail.com:465" \
+                --user "$MAIL_USERNAME:$MAIL_APP_PASSWORD" \
+                --mail-from "$MAIL_USERNAME" --mail-rcpt "$MAIL_USERNAME" -T -
