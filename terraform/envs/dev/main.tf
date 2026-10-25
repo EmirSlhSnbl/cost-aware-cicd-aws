@@ -51,3 +51,9 @@ module "ecs" {
   app_port             = var.app_port
   desired_count        = var.desired_count
 }
+resource "aws_lb" "demo" {
+  name               = "finops-demo-alb"
+  load_balancer_type = "application"
+  subnets            = module.network.public_subnet_ids
+  security_groups    = [module.network.app_security_group_id]
+}
