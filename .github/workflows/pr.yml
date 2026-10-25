@@ -172,9 +172,10 @@ jobs:
         with:
           directory: terraform
           framework: terraform
-          soft_fail: true
+          config_file: .checkov.yaml
+          soft_fail: false
           output_format: cli
-
+          
       - name: Build image for scanning
         run: docker build -t finops-app:scan ./app
 
