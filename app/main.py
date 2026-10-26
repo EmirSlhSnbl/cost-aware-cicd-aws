@@ -76,8 +76,7 @@ def _finish(response):
 
 @app.get("/")
 def index():
-    return jsonify(message="Merhaba, FinOps Guard!", version=APP_VERSION)
-
+    return jsonify(message="Merhaba, FinOps Guard v2!", version=APP_VERSION)
 
 @app.get("/health")
 def health():
