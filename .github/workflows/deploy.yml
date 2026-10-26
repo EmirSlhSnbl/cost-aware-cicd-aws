@@ -66,7 +66,11 @@ jobs:
         id: previous
         working-directory: ${{ env.TF_DIR }}
         run: |
-          PREV=$(terraform output -raw deployed_image_tag 2>/dev/null || true)
+          PREV=$(terraform output -json 2>/dev/null | jq -r '.deployed_image_tag.value // empty' 2>/dev/null || true)
+          # accept only something that looks like an image tag
+          if ! printf '%s' "$PREV" | grep -Eq '^[A-Za-z0-9._-]{1,128}$'; then
+            PREV=""
+          fi
           echo "tag=${PREV}" >> "$GITHUB_OUTPUT"
           echo "Previously deployed tag: '${PREV:-none}'"
 
@@ -160,7 +164,7 @@ jobs:
       # or scale to zero if there was no previous deployment.
       - name: Roll back
         id: rollback
-        if: failure() && (steps.smoke.conclusion == 'failure' || steps.smoke.conclusion == 'cancelled' || steps.smoke.conclusion == 'skipped')
+        if: failure() && steps.deploy.conclusion != 'skipped'
         working-directory: ${{ env.TF_DIR }}
         env:
           PREV: ${{ steps.previous.outputs.tag }}
