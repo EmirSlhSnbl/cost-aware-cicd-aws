@@ -94,6 +94,7 @@ jobs:
           fi
 
       - name: Deploy (terraform apply)
+        id: deploy
         working-directory: ${{ env.TF_DIR }}
         env:
           TAG: ${{ steps.meta.outputs.tag }}
