@@ -202,9 +202,33 @@ jobs:
       - name: Build image for scanning
         run: docker build -t finops-app:scan ./app
 
+      - name: Install Trivy (pinned, retries, checksum)
+        run: |
+          VERSION=0.70.0
+          BASE="https://github.com/aquasecurity/trivy/releases/download/v${VERSION}"
+          TARBALL="trivy_${VERSION}_Linux-64bit.tar.gz"
+          TMP="$(mktemp -d)"
+          curl -fsSL --retry 6 --retry-all-errors --retry-delay 10 --connect-timeout 20 -o "$TMP/$TARBALL" "$BASE/$TARBALL"
+          curl -fsSL --retry 6 --retry-all-errors --retry-delay 10 --connect-timeout 20 -o "$TMP/checksums.txt" "$BASE/trivy_${VERSION}_checksums.txt"
+          (cd "$TMP" && grep " $TARBALL\$" checksums.txt | sha256sum -c -)
+          mkdir -p "$HOME/.local/bin"
+          tar -xzf "$TMP/$TARBALL" -C "$HOME/.local/bin" trivy
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          "$HOME/.local/bin/trivy" --version
+
       - name: Trivy image scan
         uses: aquasecurity/trivy-action@v0.36.0
         with:
+          skip-setup-trivy: true
+          image-ref: finops-app:scan
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"
+
+      - name: Trivy image scan
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          skip-setup-trivy: true
           image-ref: finops-app:scan
           severity: CRITICAL,HIGH
           ignore-unfixed: true
