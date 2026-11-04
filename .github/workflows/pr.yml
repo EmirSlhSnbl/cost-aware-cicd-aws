@@ -47,6 +47,13 @@ jobs:
           curl -fsS http://127.0.0.1:8080/version
           curl -fsS "http://127.0.0.1:8080/work?ms=50"
 
+      - name: ML data layer (lint and tests)
+        working-directory: ml
+        run: |
+          ruff check .
+          ruff format --check .
+          pytest -q
+
       - name: Container logs
         if: always()
         run: docker logs smoke || true
