@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Kitap Durağı{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('shop.static', filename='style.css') }}">
+</head>
+<body>
+  <header>
+    <a class="brand" href="/">Kitap Durağı</a>
+    <nav>
+      <a href="/urunler">Ürünler</a>
+      <a href="/hakkinda">Hakkında</a>
+      <a href="/sepet">Sepet (<span id="cart-count">0</span>)</a>
+    </nav>
+  </header>
+  <main>{% block content %}{% endblock %}</main>
+  <footer>FinOps Guard örnek projesi · sürüm {{ version }}</footer>
+  <script src="{{ url_for('shop.static', filename='cart.js') }}"></script>
+</body>
+</html>

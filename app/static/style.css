@@ -1,0 +1,9 @@
+body{font-family:system-ui,sans-serif;margin:0;color:#14202e;background:#f7f8fa}
+header,footer{display:flex;justify-content:space-between;gap:1rem;padding:1rem 1.5rem;background:#0f766e;color:#fff}
+header a,footer{color:#fff;text-decoration:none}
+nav{display:flex;gap:1rem;flex-wrap:wrap}
+main{max-width:960px;margin:0 auto;padding:1.5rem}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1rem}
+.card{background:#fff;border:1px solid #d8dee6;border-radius:10px;padding:1rem}
+.card h3{margin:.25rem 0}
+button{font:inherit;padding:.4rem .8rem;border-radius:6px;border:1px solid #0f766e;background:#0f766e;color:#fff;cursor:pointer}

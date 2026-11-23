@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}{{ p.name }} · Kitap Durağı{% endblock %}
+{% block content %}
+<h1>{{ p.name }}</h1>
+<p><small>{{ p.category }}</small></p>
+<p>{{ p.desc }}</p>
+<p><b>{{ "%.2f"|format(p.price) }} ₺</b></p>
+<button class="add" data-id="{{ p.id }}">Sepete ekle</button>
+{% endblock %}
