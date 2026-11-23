@@ -1,6 +1,7 @@
 # --- Stage 1: install dependencies ---
 FROM python:3.12-slim AS builder
-RUN apt-get update \
+RUN apt-get update -o Acquire::http::No-Cache=True \
+    && apt-get install -y --only-upgrade zlib1g \
     && apt-get upgrade -y \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /build

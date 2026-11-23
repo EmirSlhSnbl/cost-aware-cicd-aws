@@ -37,8 +37,7 @@ jobs:
         run: pytest --cov=main --cov=shop --cov-fail-under=90 -q
 
       - name: Build Docker image
-        run: docker build -t finops-app:pr ./app
-
+        run: docker build --no-cache -t finops-app:scan ./app
       - name: Container smoke test
         run: |
           docker build -t finops-app:ci app
