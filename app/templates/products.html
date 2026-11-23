@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Ürünler · Kitap Durağı{% endblock %}
+{% block content %}
+<h1>Ürünler</h1>
+<div class="grid">
+{% for p in products %}
+  <article class="card">
+    <small>{{ p.category }}</small>
+    <h3><a href="/urun/{{ p.id }}">{{ p.name }}</a></h3>
+    <p>{{ p.desc }}</p>
+    <b>{{ "%.2f"|format(p.price) }} ₺</b>
+    <button class="add" data-id="{{ p.id }}">Sepete ekle</button>
+  </article>
+{% endfor %}
+</div>
+{% endblock %}

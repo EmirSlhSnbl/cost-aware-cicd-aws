@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Teknoloji kitaplarında tek durak</h1>
+<p>Bulut, DevOps ve veri kitapları. Bu site, FinOps Guard'ın altyapı maliyetini izlediği örnek uygulamadır.</p>
+<div class="grid">
+{% for p in featured %}
+  <article class="card">
+    <h3><a href="/urun/{{ p.id }}">{{ p.name }}</a></h3>
+    <p>{{ p.desc }}</p>
+    <b>{{ "%.2f"|format(p.price) }} ₺</b>
+  </article>
+{% endfor %}
+</div>
+{% endblock %}

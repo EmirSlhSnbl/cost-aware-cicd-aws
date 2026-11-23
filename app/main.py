@@ -12,6 +12,7 @@ import sys
 import time
 
 from flask import Flask, g, jsonify, request
+from shop import bp as shop_bp
 
 APP_VERSION = os.getenv("APP_VERSION", "dev")
 MAX_WORK_MS = 500  # upper bound for /work so it cannot be used to burn CPU for long
@@ -47,6 +48,7 @@ def _build_logger() -> logging.Logger:
 
 logger = _build_logger()
 app = Flask(__name__)
+app.register_blueprint(shop_bp)
 
 
 @app.before_request
@@ -74,9 +76,10 @@ def _finish(response):
     return response
 
 
-@app.get("/")
+@app.get("/api/hello")
 def index():
     return jsonify(message="Merhaba, FinOps Guard v2!", version=APP_VERSION)
+
 
 @app.get("/health")
 def health():

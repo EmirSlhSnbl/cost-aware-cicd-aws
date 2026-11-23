@@ -13,7 +13,9 @@ RUN useradd --create-home --uid 10001 appuser
 WORKDIR /app
 
 COPY --from=builder /install /usr/local
-COPY main.py .
+COPY main.py shop.py ./
+COPY templates ./templates
+COPY static ./static
 
 USER appuser
 EXPOSE 8080

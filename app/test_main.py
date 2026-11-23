@@ -26,7 +26,7 @@ def test_health_is_unhealthy_when_chaos_flag_is_set(client, monkeypatch):
 
 
 def test_index_returns_message_and_version(client):
-    response = client.get("/")
+    response = client.get("/api/hello")
     body = response.get_json()
     assert response.status_code == 200
     assert "message" in body
@@ -80,7 +80,7 @@ def test_unhandled_error_returns_json_500(client, monkeypatch):
 
     monkeypatch.setitem(app.view_functions, "index", boom)
     app.config["PROPAGATE_EXCEPTIONS"] = False
-    response = client.get("/")
+    response = client.get("/api/hello")
     assert response.status_code == 500
     assert response.get_json() == {"error": "internal server error"}
 

@@ -1,0 +1,21 @@
+# FinOps Guard yapılandırması: boru hattı davranışını bu dosya belirler.
+# Politika KODUNU değiştirmeden yalnızca buradaki değerleri değiştirin.
+
+# Hazır ayar paketi: solo | startup | enterprise
+profile: solo
+
+# Bu boru hattının denetlediği ortam (aşağıdaki "environments" ile eşleşir)
+environment: dev
+
+budget:
+  monthly_usd: 30        # aylık tavan (profildeki değeri ezer)
+  mode: block            # block = merge'i engelle, warn = yalnızca uyar
+  warn_at_percent: 80    # tavanın %80'inde uyarı ver
+
+# Ortama özel değerler (budget'ı ezer)
+environments:
+  dev:  { monthly_usd: 30 }
+  prod: { monthly_usd: 400, mode: warn }
+
+rules:
+  max_increase_percent: 0   # tek PR'ın izin verilen artışı (%). 0 = kapalı

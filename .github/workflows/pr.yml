@@ -34,7 +34,7 @@ jobs:
 
       - name: Test (coverage gate)
         working-directory: app
-        run: pytest --cov=main --cov-fail-under=90 -q
+        run: pytest --cov=main --cov=shop --cov-fail-under=90 -q
 
       - name: Build Docker image
         run: docker build -t finops-app:pr ./app
@@ -166,6 +166,10 @@ jobs:
             --compare-to=/tmp/infracost-base.json \
             --out-file=/tmp/infracost.json
 
+      - name: DEBUG alanlar
+        run: |
+          python3 -c "import json; d=json.load(open('/tmp/infracost.json')); print({k: d.get(k) for k in ('totalMonthlyCost','pastTotalMonthlyCost','diffTotalMonthlyCost')})"
+
       - name: Post PR comment
         run: |
           infracost comment github \
@@ -182,7 +186,7 @@ jobs:
           sudo mv "$RUNNER_TEMP/conftest" /usr/local/bin/conftest
 
       - name: Budget policy check
-        run: conftest test /tmp/infracost.json --policy pr/policy/cost --all-namespaces --no-color
+        run: conftest test /tmp/infracost.json --policy pr/policy/cost --data pr/finops-guard.yml --all-namespaces --no-color
 
   security:
     name: security
