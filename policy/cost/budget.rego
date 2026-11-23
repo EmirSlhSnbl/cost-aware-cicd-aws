@@ -36,13 +36,33 @@ default max_increase := 0
 
 max_increase := data.rules.max_increase_percent
 
+# --- Sayı doğrulama yardımcıları ---
+_is_valid_number(val) if {
+	is_number(val)
+}
+
+_is_valid_number(val) if {
+	is_string(val)
+	regex.match(`^-?\d+(\.\d+)?$`, trim_space(val))
+}
+
 # --- Infracost çıktısı (fail-closed: okunamazsa reddet) ---
-# Not: OPA'da to_number(null) sessizce 0 döner. Bu yüzden türü açıkça denetliyoruz.
-total := to_number(input.totalMonthlyCost) if is_string(input.totalMonthlyCost)
+# Not: OPA'da to_number(null) sessizce 0 döner, geçersiz string ise hata fırlatır.
+total := to_number(trim_space(input.totalMonthlyCost)) if {
+	is_string(input.totalMonthlyCost)
+	_is_valid_number(input.totalMonthlyCost)
+}
 
 total := input.totalMonthlyCost if is_number(input.totalMonthlyCost)
 
-past := to_number(object.get(input, "pastTotalMonthlyCost", "0"))
+default past := 0
+
+past := to_number(trim_space(input.pastTotalMonthlyCost)) if {
+	is_string(input.pastTotalMonthlyCost)
+	_is_valid_number(input.pastTotalMonthlyCost)
+}
+
+past := input.pastTotalMonthlyCost if is_number(input.pastTotalMonthlyCost)
 
 # --- İhlaller ---
 violations contains msg if {
@@ -62,7 +82,7 @@ violations contains msg if {
 }
 
 violations contains "Infracost çıktısında totalMonthlyCost okunamadı" if {
-	not total
+	not is_number(total)
 }
 
 # --- Mod: block ise deny, değilse warn ---
@@ -84,13 +104,4 @@ warn contains msg if {
 		"Maliyet sınırın %%%v'ine yaklaştı: %v $ / %v $",
 		[warn_pct, total, limit],
 	)
-}
-
-_is_valid_number(val) if {
-	is_number(val)
-}
-
-_is_valid_number(val) if {
-	is_string(val)
-	regex.match(`^-?\d+(\.\d+)?$`, trim_space(val))
 }
