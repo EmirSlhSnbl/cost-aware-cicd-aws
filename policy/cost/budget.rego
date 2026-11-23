@@ -47,7 +47,10 @@ _is_valid_number(val) if {
 }
 
 # --- Infracost çıktısı (fail-closed: okunamazsa reddet) ---
+default total := null
+
 # Not: OPA'da to_number(null) sessizce 0 döner, geçersiz string ise hata fırlatır.
+
 total := to_number(trim_space(input.totalMonthlyCost)) if {
 	is_string(input.totalMonthlyCost)
 	_is_valid_number(input.totalMonthlyCost)
