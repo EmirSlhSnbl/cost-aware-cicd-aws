@@ -40,8 +40,14 @@ max_increase := data.rules.max_increase_percent
 # Not: OPA'da to_number(null) sessizce 0 döner. Bu yüzden türü açıkça denetliyoruz.
 total := to_number(input.totalMonthlyCost) if is_string(input.totalMonthlyCost)
 
-total := input.totalMonthlyCost if is_number(input.totalMonthlyCost)
+is_valid_number(x) if {
+    is_number(x)
+}
 
+is_valid_number(x) if {
+    is_string(x)
+    regex.match(`^-?[0-9]+(\.[0-9]+)?$`, x)
+}
 past := to_number(object.get(input, "pastTotalMonthlyCost", "0"))
 
 # --- İhlaller ---
